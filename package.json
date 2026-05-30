@@ -1,0 +1,15 @@
+{
+  "name": "vocanicz-ai-tools",
+  "version": "0.1.0",
+  "description": "Cross-platform Claude Code status bar and YOLO tools",
+  "type": "module",
+  "bin": {
+    "vocanicz-ai-tools": "./src/install.js"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}
