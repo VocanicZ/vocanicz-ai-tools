@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { getSetupCommand } from './yolo/setup.js';
+import { installHarness } from './modules/harness.js';
 
 const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, '.vocanicz-ai-tools');
@@ -46,6 +47,12 @@ async function install() {
       console.log('Updated Claude settings.json');
     } else {
       console.warn('Claude settings.json not found at', CLAUDE_SETTINGS);
+    }
+
+    try {
+      await installHarness();
+    } catch (err) {
+      console.warn('Harness installation failed, but continuing with toolkit setup:', err.message);
     }
 
     console.log('\nInstallation complete!');
