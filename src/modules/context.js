@@ -27,6 +27,37 @@ export function parseTokens(transcript) {
 }
 
 /**
+ * Normalizes Claude Code's `model` field to a lowercase identifier string.
+ * Claude Code sends an object ({ id, display_name }); older/custom inputs
+ * may send a plain string. Returns '' when nothing usable is present.
+ * @param {Object|string} model
+ * @returns {string}
+ */
+export function modelId(model) {
+  if (!model) return '';
+  if (typeof model === 'string') return model.toLowerCase();
+  return String(model.id || model.display_name || '').toLowerCase();
+}
+
+/**
+ * Resolves the max context window (tokens).
+ *   - numeric config.contextLimit wins (explicit override)
+ *   - otherwise "auto": map known 1M-capable models, else 200k
+ * @param {Object|string} model
+ * @param {number|string} [contextLimit="auto"]
+ * @returns {number}
+ */
+export function getContextLimit(model, contextLimit = 'auto') {
+  if (typeof contextLimit === 'number' && contextLimit > 0) return contextLimit;
+
+  const id = modelId(model);
+  // Current-gen Claude 4.x (Opus/Sonnet) and Sonnet support 1M context.
+  if (/opus-4|sonnet-4|claude-(opus|sonnet)-4/.test(id)) return 1000000;
+  if (id.includes('sonnet')) return 1000000;
+  return 200000;
+}
+
+/**
  * Detects "graphify" skill usage and existence of graphify-out/ directory.
  * @param {Object|string} transcript - The transcript history.
  * @param {string} cwd - Current working directory.

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseTokens, detectGraphify } from '../src/modules/context.js';
+import { parseTokens, detectGraphify, getContextLimit, modelId } from '../src/modules/context.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -34,6 +34,40 @@ describe('context module', () => {
       // fixed = 25000
       // messages = max(0, 10000 - 25000) = 0
       expect(parseTokens(transcript)).toEqual({ total: 10000, messages: 0 });
+    });
+  });
+
+  describe('modelId', () => {
+    it('handles object model {id}', () => {
+      expect(modelId({ id: 'claude-opus-4-8', display_name: 'Opus' })).toBe('claude-opus-4-8');
+    });
+    it('falls back to display_name', () => {
+      expect(modelId({ display_name: 'Sonnet' })).toBe('sonnet');
+    });
+    it('handles string model', () => {
+      expect(modelId('Claude-Sonnet')).toBe('claude-sonnet');
+    });
+    it('handles missing model', () => {
+      expect(modelId(null)).toBe('');
+      expect(modelId(undefined)).toBe('');
+    });
+  });
+
+  describe('getContextLimit', () => {
+    it('numeric config override wins', () => {
+      expect(getContextLimit({ id: 'claude-opus-4-8' }, 250000)).toBe(250000);
+    });
+    it('object opus-4 model -> 1M (the reported bug)', () => {
+      expect(getContextLimit({ id: 'claude-opus-4-8', display_name: 'Opus' }, 'auto')).toBe(1000000);
+    });
+    it('sonnet -> 1M', () => {
+      expect(getContextLimit({ id: 'claude-sonnet-4-6' }, 'auto')).toBe(1000000);
+    });
+    it('unknown/older model -> 200k', () => {
+      expect(getContextLimit({ id: 'claude-3-haiku' }, 'auto')).toBe(200000);
+    });
+    it('defaults to auto when limit omitted', () => {
+      expect(getContextLimit({ id: 'claude-opus-4-8' })).toBe(1000000);
     });
   });
 

@@ -68,7 +68,13 @@ async function installStatusBar() {
   // Write default config (preserve existing user config)
   const configPath = path.join(INSTALL_DIR, 'config.json');
   if (!existsSync(configPath)) {
-    const defaultConfig = { graphify: 'auto' };
+    const defaultConfig = {
+      graphify: 'auto',
+      contextLimit: 'auto',
+      autoUpdate: false,
+      reserve: 20,
+      segments: { context: true, messages: true, usage: true, graphify: true }
+    };
     await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2));
     console.log('Created default config.json');
   }

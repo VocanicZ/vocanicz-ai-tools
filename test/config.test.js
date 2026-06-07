@@ -16,7 +16,7 @@ describe('config module', () => {
     it('merges file over defaults', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(fs, 'readFileSync').mockReturnValue('{"graphify":"off"}');
-      expect(loadConfig('/tmp/c.json')).toEqual({ graphify: 'off' });
+      expect(loadConfig('/tmp/c.json')).toEqual({ ...DEFAULT_CONFIG, graphify: 'off' });
     });
 
     it('returns defaults on malformed JSON', () => {
@@ -29,6 +29,22 @@ describe('config module', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
       vi.spyOn(fs, 'readFileSync').mockReturnValue('{}');
       expect(loadConfig('/tmp/c.json')).toEqual(DEFAULT_CONFIG);
+    });
+
+    it('deep-merges partial segments over defaults', () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'readFileSync').mockReturnValue('{"segments":{"usage":false}}');
+      const cfg = loadConfig('/tmp/c.json');
+      expect(cfg.segments).toEqual({ context: true, messages: true, usage: false, graphify: true });
+    });
+
+    it('carries new keys (contextLimit/autoUpdate/reserve)', () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      vi.spyOn(fs, 'readFileSync').mockReturnValue('{"contextLimit":500000,"autoUpdate":true,"reserve":10}');
+      const cfg = loadConfig('/tmp/c.json');
+      expect(cfg.contextLimit).toBe(500000);
+      expect(cfg.autoUpdate).toBe(true);
+      expect(cfg.reserve).toBe(10);
     });
   });
 
