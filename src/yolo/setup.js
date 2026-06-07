@@ -26,6 +26,6 @@ alias yolo='claude --dangerously-skip-permissions'
   }
 }
 
-if (import.meta.url === \`file://\${process.argv[1]}\`) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   console.log(getSetupCommand());
 }

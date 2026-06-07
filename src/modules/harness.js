@@ -19,6 +19,20 @@ export async function installHarness() {
   console.log('--- Harness Installation Complete ---\n');
 }
 
+/**
+ * Installs the Harness engine only (deps + clone + CLI symlink),
+ * without the Claude plugin/skill integration step.
+ */
+export async function installHarnessEngine() {
+  console.log('\n--- Installing Harness Engine ---');
+  if (!(await ensureDependencies())) {
+    throw new Error('Harness dependencies not satisfied');
+  }
+  await setupEngine();
+  await createSymlink();
+  console.log('--- Harness Engine Complete ---\n');
+}
+
 export async function setupEngine() {
   if (!existsSync(HARNESS_DIR)) {
     console.log('Cloning Harness engine...');
@@ -154,7 +168,7 @@ async function attemptInstall(dep) {
   return false;
 }
 
-async function createSymlink() {
+export async function createSymlink() {
   const binDir = path.join(os.homedir(), '.local', 'bin');
   await fs.mkdir(binDir, { recursive: true });
   const target = path.join(binDir, 'harness');
