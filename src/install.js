@@ -35,6 +35,14 @@ async function install() {
     const targetSrcDir = path.join(INSTALL_DIR, 'src');
     await copyRecursive(srcDir, targetSrcDir);
 
+    // Write default config (preserve existing user config)
+    const configPath = path.join(INSTALL_DIR, 'config.json');
+    if (!existsSync(configPath)) {
+      const defaultConfig = { graphify: 'auto' };
+      await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2));
+      console.log('Created default config.json');
+    }
+
     // Update Claude settings
     if (existsSync(CLAUDE_SETTINGS)) {
       const settingsContent = await fs.readFile(CLAUDE_SETTINGS, 'utf-8');
