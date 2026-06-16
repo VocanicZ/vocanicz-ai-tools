@@ -1,12 +1,25 @@
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, cpSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const DEPS = ['git', 'python3', 'gh', 'claude', 'tmux'];
 const HARNESS_REPO = 'https://github.com/VocanicZ/Harness.git';
 const HARNESS_DIR = path.join(os.homedir(), '.harness', 'engine');
+
+/**
+ * Recursively copy a skill directory into dest, but only if dest does not
+ * already exist (never clobber a user's same-named skill). Best-effort.
+ */
+export function copySkillDirIfAbsent(src, dest) {
+  if (!existsSync(src) || existsSync(dest)) return;
+  mkdirSync(path.dirname(dest), { recursive: true });
+  cpSync(src, dest, { recursive: true });
+}
 
 export async function installHarness() {
   console.log('\n--- Installing Harness Engine ---');
@@ -98,6 +111,14 @@ export async function setupClaudeIntegration() {
     } catch (err) {
       // Best effort for directory reading
     }
+  }
+
+  // Install the bundled subagent-task-tree skill (does not clobber an existing one)
+  try {
+    const bundledSkill = path.join(__dirname, '..', '..', 'skills', 'subagent-task-tree');
+    copySkillDirIfAbsent(bundledSkill, path.join(skillsDir, 'subagent-task-tree'));
+  } catch (err) {
+    console.warn(`subagent-task-tree skill install skipped: ${err.message}`);
   }
 }
 

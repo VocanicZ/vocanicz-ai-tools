@@ -1,9 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { installHarness, ensureDependencies, setupEngine, setupClaudeIntegration } from '../src/modules/harness.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { installHarness, ensureDependencies, setupEngine, setupClaudeIntegration, copySkillDirIfAbsent } from '../src/modules/harness.js';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import * as fsSync from 'node:fs';
+import path from 'node:path';
+// Real fs (the module-under-test mocks 'node:fs'/'node:os'; these import the
+// genuine implementations so the copy helper can touch a real tmpdir).
+const realFs = await vi.importActual('node:fs');
+const realOs = await vi.importActual('node:os');
 
 vi.mock('node:child_process', () => ({
   execSync: vi.fn()
@@ -36,7 +42,9 @@ vi.mock('node:fs/promises', () => ({
 }));
 
 vi.mock('node:fs', () => ({
-  existsSync: vi.fn()
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  cpSync: vi.fn()
 }));
 
 describe('ensureDependencies', () => {
@@ -274,5 +282,41 @@ describe('installHarness', () => {
     vi.mocked(os.platform).mockReturnValue('freebsd'); // Force auto-install failure
     
     await expect(installHarness()).rejects.toThrow('Harness dependencies not satisfied');
+  });
+});
+
+describe('copySkillDirIfAbsent', () => {
+  let tmp;
+  // The module under test mocks 'node:fs'; route the sync fs functions it uses
+  // to the genuine implementations so the helper touches a real tmpdir.
+  const { existsSync: realExistsSync, mkdirSync: realMkdirSync, cpSync: realCpSync } = realFs;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    tmp = realFs.mkdtempSync(path.join(realOs.tmpdir(), 'vat-skill-'));
+    vi.mocked(existsSync).mockImplementation((...a) => realExistsSync(...a));
+    vi.mocked(fsSync.mkdirSync).mockImplementation((...a) => realMkdirSync(...a));
+    vi.mocked(fsSync.cpSync).mockImplementation((...a) => realCpSync(...a));
+  });
+  afterEach(() => { realFs.rmSync(tmp, { recursive: true, force: true }); });
+
+  it('copies a skill dir recursively into the dest', () => {
+    const src = path.join(tmp, 'src-skill');
+    realFs.mkdirSync(src, { recursive: true });
+    realFs.writeFileSync(path.join(src, 'SKILL.md'), 'hello');
+    const dest = path.join(tmp, 'skills', 'mine');
+    copySkillDirIfAbsent(src, dest);
+    expect(realFs.readFileSync(path.join(dest, 'SKILL.md'), 'utf-8')).toBe('hello');
+  });
+
+  it('does NOT overwrite an existing dest skill', () => {
+    const src = path.join(tmp, 'src-skill');
+    realFs.mkdirSync(src, { recursive: true });
+    realFs.writeFileSync(path.join(src, 'SKILL.md'), 'new');
+    const dest = path.join(tmp, 'skills', 'mine');
+    realFs.mkdirSync(dest, { recursive: true });
+    realFs.writeFileSync(path.join(dest, 'SKILL.md'), 'original');
+    copySkillDirIfAbsent(src, dest);
+    expect(realFs.readFileSync(path.join(dest, 'SKILL.md'), 'utf-8')).toBe('original');
   });
 });
