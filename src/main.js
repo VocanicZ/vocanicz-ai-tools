@@ -1,6 +1,12 @@
 #!/usr/bin/env node
-import { parseTokens, detectGraphify, getContextLimit } from './modules/context.js';
-import { getUsage } from './modules/usage.js';
+import {
+  readTranscriptTotal,
+  messagesFromTotal,
+  detectGraphify,
+  getContextLimit,
+  renderContext
+} from './modules/context.js';
+import { getUsage, renderUsage, renderAntigravityUsage } from './modules/usage.js';
 import { compose } from './modules/composer.js';
 import { loadConfig, shouldShowGraphify } from './modules/config.js';
 import { maybeAutoUpdate } from './modules/autoupdate.js';
@@ -19,78 +25,60 @@ async function main() {
 
   try {
     const data = JSON.parse(input);
-    const { transcript, model, cwd } = data;
+    const model = data.model;
+    // Claude Code sends a transcript_path (file); resolve cwd from workspace too.
+    const transcriptPath = data.transcript_path || data.transcript;
+    const cwd = (data.workspace && data.workspace.current_dir) || data.cwd || process.cwd();
+    const isAntigravity = data.product === 'antigravity';
 
     const config = loadConfig();
     const seg = config.segments;
 
+    // ---- Context tokens -----------------------------------------------------
     let total = 0;
     let messages = 0;
     let limit = 200000;
 
     if (data.context_window) {
+      // Antigravity / hosts that pass the window inline.
       const cw = data.context_window;
       const usage = cw.current_usage || {};
-      total = (usage.input_tokens || 0) + 
-              (usage.cache_creation_input_tokens || 0) + 
+      total = (usage.input_tokens || 0) +
+              (usage.cache_creation_input_tokens || 0) +
               (usage.cache_read_input_tokens || 0);
-      limit = cw.context_window_size || 1000000;
-      
-      const SYS_PROMPT = 8800;
-      const SYS_TOOLS = 11800;
-      const AGENTS = 700;
-      const MEMORY = 100;
-      const SKILLS = 3600;
-      const fixed = SYS_PROMPT + SYS_TOOLS + AGENTS + MEMORY + SKILLS;
-      messages = Math.max(0, total - fixed);
+      limit = cw.context_window_size || getContextLimit(model, config.contextLimit);
+      messages = messagesFromTotal(total);
     } else {
-      const tokens = parseTokens(transcript);
+      // Claude Code: read the latest usage block out of the transcript file.
+      const tokens = readTranscriptTotal(transcriptPath);
       total = tokens.total;
       messages = tokens.messages;
       limit = getContextLimit(model, config.contextLimit);
     }
 
-    const isGraphify = detectGraphify(transcript, cwd || process.cwd());
+    // ---- Left part: [Graphify] + /context-style bar -------------------------
+    const isGraphify = detectGraphify(transcriptPath, cwd);
     const showGraphify = seg.graphify && shouldShowGraphify(config.graphify, isGraphify);
 
-    const contextPercent = Math.round((total / limit) * 100);
-
-    let usage = null;
-    if (seg.usage) {
-      if (data.product === 'antigravity' && data.quota) {
-        let lowestFraction = 1.0;
-        let quotaName = '';
-        for (const [key, q] of Object.entries(data.quota)) {
-          if (q && typeof q.remaining_fraction === 'number') {
-            if (q.remaining_fraction < lowestFraction) {
-              lowestFraction = q.remaining_fraction;
-              quotaName = key;
-            }
-          }
-        }
-        usage = {
-          isAntigravity: true,
-          remaining_fraction: lowestFraction,
-          quota_name: quotaName
-        };
-      } else {
-        usage = await getUsage();
-      }
+    let left = '';
+    if (showGraphify) left += '[Graphify] ';
+    if (seg.context) {
+      left += renderContext({
+        total,
+        messages,
+        limit,
+        includeMessages: seg.messages !== false
+      });
     }
 
-    const parts = [];
-    if (seg.context) parts.push(`[${contextPercent}% ctx]`);
-    if (seg.messages) parts.push(`[${messages} msg]`);
-    if (showGraphify) parts.push('[Graphify]');
-    const left = parts.join(' ');
-
+    // ---- Right part: usage meters (Claude 5h/7d, or Antigravity quotas) -----
     let right = '';
-    if (usage) {
-      if (usage.isAntigravity) {
-        right = `[${Math.round(usage.remaining_fraction * 100)}% quota]`;
-      } else if (usage.monthly_limit !== undefined) {
-        const remaining = usage.monthly_limit - (usage.monthly_usage || 0);
-        right = `[$${(remaining).toFixed(2)} rem]`;
+    if (seg.usage) {
+      if (isAntigravity && data.quota) {
+        right = renderAntigravityUsage(data.quota);
+      } else if (!isAntigravity) {
+        const usage = await getUsage();
+        right = renderUsage(usage);
       }
     }
 
