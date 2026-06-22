@@ -24,14 +24,59 @@ async function main() {
     const config = loadConfig();
     const seg = config.segments;
 
-    const { total, messages } = parseTokens(transcript);
+    let total = 0;
+    let messages = 0;
+    let limit = 200000;
+
+    if (data.context_window) {
+      const cw = data.context_window;
+      const usage = cw.current_usage || {};
+      total = (usage.input_tokens || 0) + 
+              (usage.cache_creation_input_tokens || 0) + 
+              (usage.cache_read_input_tokens || 0);
+      limit = cw.context_window_size || 1000000;
+      
+      const SYS_PROMPT = 8800;
+      const SYS_TOOLS = 11800;
+      const AGENTS = 700;
+      const MEMORY = 100;
+      const SKILLS = 3600;
+      const fixed = SYS_PROMPT + SYS_TOOLS + AGENTS + MEMORY + SKILLS;
+      messages = Math.max(0, total - fixed);
+    } else {
+      const tokens = parseTokens(transcript);
+      total = tokens.total;
+      messages = tokens.messages;
+      limit = getContextLimit(model, config.contextLimit);
+    }
+
     const isGraphify = detectGraphify(transcript, cwd || process.cwd());
     const showGraphify = seg.graphify && shouldShowGraphify(config.graphify, isGraphify);
 
-    const limit = getContextLimit(model, config.contextLimit);
     const contextPercent = Math.round((total / limit) * 100);
 
-    const usage = seg.usage ? await getUsage() : null;
+    let usage = null;
+    if (seg.usage) {
+      if (data.product === 'antigravity' && data.quota) {
+        let lowestFraction = 1.0;
+        let quotaName = '';
+        for (const [key, q] of Object.entries(data.quota)) {
+          if (q && typeof q.remaining_fraction === 'number') {
+            if (q.remaining_fraction < lowestFraction) {
+              lowestFraction = q.remaining_fraction;
+              quotaName = key;
+            }
+          }
+        }
+        usage = {
+          isAntigravity: true,
+          remaining_fraction: lowestFraction,
+          quota_name: quotaName
+        };
+      } else {
+        usage = await getUsage();
+      }
+    }
 
     const parts = [];
     if (seg.context) parts.push(`[${contextPercent}% ctx]`);
@@ -40,9 +85,13 @@ async function main() {
     const left = parts.join(' ');
 
     let right = '';
-    if (usage && usage.monthly_limit !== undefined) {
-      const remaining = usage.monthly_limit - (usage.monthly_usage || 0);
-      right = `[$${(remaining).toFixed(2)} rem]`;
+    if (usage) {
+      if (usage.isAntigravity) {
+        right = `[${Math.round(usage.remaining_fraction * 100)}% quota]`;
+      } else if (usage.monthly_limit !== undefined) {
+        const remaining = usage.monthly_limit - (usage.monthly_usage || 0);
+        right = `[$${(remaining).toFixed(2)} rem]`;
+      }
     }
 
     console.log(compose(left, right, { reserve: config.reserve }));

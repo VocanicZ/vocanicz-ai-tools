@@ -54,6 +54,10 @@ export function getContextLimit(model, contextLimit = 'auto') {
   // Current-gen Claude 4.x (Opus/Sonnet) and Sonnet support 1M context.
   if (/opus-4|sonnet-4|claude-(opus|sonnet)-4/.test(id)) return 1000000;
   if (id.includes('sonnet')) return 1000000;
+  if (id.includes('gemini')) {
+    if (id.includes('pro')) return 2000000;
+    return 1000000;
+  }
   return 200000;
 }
 
@@ -66,10 +70,12 @@ export function getContextLimit(model, contextLimit = 'auto') {
 export function detectGraphify(transcript, cwd) {
   const hasGraphifyDir = fs.existsSync(path.join(cwd, 'graphify-out'));
   if (!hasGraphifyDir) return false;
+  if (!transcript) return false;
 
   const transcriptString = typeof transcript === 'string' 
     ? transcript 
     : JSON.stringify(transcript);
     
-  return transcriptString.includes('graphify');
+  return transcriptString ? transcriptString.includes('graphify') : false;
 }
+

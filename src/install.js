@@ -11,6 +11,7 @@ import { resolveFeatures, FEATURES } from './modules/features.js';
 const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, '.vocanicz-ai-tools');
 const CLAUDE_SETTINGS = path.join(HOME, '.claude', 'settings.json');
+const AGY_SETTINGS = path.join(HOME, '.gemini', 'antigravity-cli', 'settings.json');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,6 +92,31 @@ async function installStatusBar() {
     console.log('Updated Claude settings.json');
   } else {
     console.warn('Claude settings.json not found at', CLAUDE_SETTINGS);
+  }
+
+  // Point Antigravity CLI's statusLine at main.js
+  const agySettingsDir = path.dirname(AGY_SETTINGS);
+  try {
+    if (!existsSync(agySettingsDir)) {
+      await fs.mkdir(agySettingsDir, { recursive: true });
+    }
+    let settings = {};
+    if (existsSync(AGY_SETTINGS)) {
+      const settingsContent = await fs.readFile(AGY_SETTINGS, 'utf-8');
+      try {
+        settings = JSON.parse(settingsContent) || {};
+      } catch (err) {
+        // ignore parse error
+      }
+    }
+
+    settings.statusLine = settings.statusLine || {};
+    settings.statusLine.command = `node ${path.join(targetSrcDir, 'main.js')}`;
+
+    await fs.writeFile(AGY_SETTINGS, JSON.stringify(settings, null, 2));
+    console.log('Updated Antigravity CLI settings.json');
+  } catch (err) {
+    console.warn('Antigravity CLI settings update failed:', err.message);
   }
 }
 

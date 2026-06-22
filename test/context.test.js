@@ -63,6 +63,12 @@ describe('context module', () => {
     it('sonnet -> 1M', () => {
       expect(getContextLimit({ id: 'claude-sonnet-4-6' }, 'auto')).toBe(1000000);
     });
+    it('gemini-3.5-flash -> 1M', () => {
+      expect(getContextLimit({ id: 'gemini-3.5-flash' }, 'auto')).toBe(1000000);
+    });
+    it('gemini-3.1-pro -> 2M', () => {
+      expect(getContextLimit({ id: 'gemini-3.1-pro' }, 'auto')).toBe(2000000);
+    });
     it('unknown/older model -> 200k', () => {
       expect(getContextLimit({ id: 'claude-3-haiku' }, 'auto')).toBe(200000);
     });
@@ -85,6 +91,12 @@ describe('context module', () => {
     it('should return false if graphify-out directory does not exist', () => {
       vi.spyOn(fs, 'existsSync').mockReturnValue(false);
       expect(detectGraphify('some text with graphify', mockCwd)).toBe(false);
+    });
+
+    it('should return false if transcript is undefined or null', () => {
+      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+      expect(detectGraphify(undefined, mockCwd)).toBe(false);
+      expect(detectGraphify(null, mockCwd)).toBe(false);
     });
 
     it('should return false if graphify-out exists but transcript does not contain graphify', () => {
