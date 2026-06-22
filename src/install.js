@@ -66,6 +66,14 @@ async function installStatusBar() {
   const targetSrcDir = path.join(INSTALL_DIR, 'src');
   await copyRecursive(srcDir, targetSrcDir);
 
+  // Build the statusLine command. Use the absolute path to the node binary
+  // running this installer (process.execPath) instead of a bare `node`, since
+  // `node` may not be on PATH in the shell the host spawns the statusLine in
+  // (common on Windows). Quote both paths so spaces (e.g. "C:\Program Files")
+  // don't break argument splitting.
+  const mainJs = path.join(targetSrcDir, 'main.js');
+  const statusLineCommand = `"${process.execPath}" "${mainJs}"`;
+
   // Write default config (preserve existing user config)
   const configPath = path.join(INSTALL_DIR, 'config.json');
   if (!existsSync(configPath)) {
@@ -86,7 +94,10 @@ async function installStatusBar() {
     const settings = JSON.parse(settingsContent);
 
     settings.statusLine = settings.statusLine || {};
-    settings.statusLine.command = `node ${path.join(targetSrcDir, 'main.js')}`;
+    // `type: "command"` is required by Claude Code; without it the statusLine
+    // entry is ignored and nothing renders.
+    settings.statusLine.type = 'command';
+    settings.statusLine.command = statusLineCommand;
 
     await fs.writeFile(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
     console.log('Updated Claude settings.json');
@@ -111,7 +122,8 @@ async function installStatusBar() {
     }
 
     settings.statusLine = settings.statusLine || {};
-    settings.statusLine.command = `node ${path.join(targetSrcDir, 'main.js')}`;
+    settings.statusLine.type = 'command';
+    settings.statusLine.command = statusLineCommand;
 
     await fs.writeFile(AGY_SETTINGS, JSON.stringify(settings, null, 2));
     console.log('Updated Antigravity CLI settings.json');
