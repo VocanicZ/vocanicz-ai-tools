@@ -13,18 +13,12 @@ export function getSetupCommand() {
 function claude-yolo {
     claude --dangerously-skip-permissions $args
 }
+Set-Alias yolo claude-yolo
+
 function agy-yolo {
     agy --dangerously-skip-permissions $args
 }
-function yolo-command {
-    if (Get-Command agy -ErrorAction SilentlyContinue) {
-        agy --dangerously-skip-permissions $args
-    } else {
-        claude --dangerously-skip-permissions $args
-    }
-}
-Set-Alias yolo yolo-command
-Set-Alias agy-yolo agy-yolo
+Set-Alias ayolo agy-yolo
 `.trim();
   } else {
     const shell = process.env.SHELL || '/bin/bash';
@@ -32,15 +26,9 @@ Set-Alias agy-yolo agy-yolo
     
     return `
 # Add this to your ${rcFile}:
-alias claude-yolo='claude --dangerously-skip-permissions'
+alias yolo='claude --dangerously-skip-permissions'
+alias ayolo='agy --dangerously-skip-permissions'
 alias agy-yolo='agy --dangerously-skip-permissions'
-yolo() {
-  if command -v agy >/dev/null 2>&1; then
-    agy --dangerously-skip-permissions "$@"
-  else
-    claude --dangerously-skip-permissions "$@"
-  fi
-}
 `.trim();
   }
 }
