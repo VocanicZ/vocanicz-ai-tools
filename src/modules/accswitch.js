@@ -2,8 +2,15 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const REPO = 'Nemo-Illusionist/claude-code-account-switcher';
+const SWITCH_DIR = path.join(os.homedir(), '.claude-switch');
+const ACCOUNTS_DIR = path.join(SWITCH_DIR, 'accounts');
+const BEGIN = '# >>> vocanicz-ai-tools: claude-acc switch >>>';
+const END = '# <<< vocanicz-ai-tools: claude-acc switch <<<';
 
 /**
  * Release asset name for a platform/arch pair.
@@ -18,6 +25,118 @@ export function assetName(platform = os.platform(), arch = os.arch()) {
   if (platform === 'darwin') return `claude-acc-macos-${cpu}`;
   if (platform === 'win32') return cpu === 'x86_64' ? 'claude-acc-windows-x86_64.exe' : null;
   return null;
+}
+
+/**
+ * Path of the rc file upstream's `claude-acc install` wires itself into.
+ * @param {string} platform - os.platform() value
+ * @param {string} shell - $SHELL value
+ * @returns {string} absolute rc path
+ */
+export function rcPath(platform = os.platform(), shell = process.env.SHELL || '') {
+  const home = os.homedir();
+  if (platform === 'win32') {
+    return path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
+  }
+  return path.join(home, shell.includes('zsh') ? '.zshrc' : '.bashrc');
+}
+
+/**
+ * The `switch` wrapper. Has to be a shell function, not a claude-acc
+ * subcommand: unsetting CLAUDE_CONFIG_DIR must affect the calling shell.
+ * @param {string} platform - os.platform() value
+ * @returns {string} rc snippet, marker-delimited
+ */
+export function switchFunction(platform = os.platform()) {
+  const bin = path.join(SWITCH_DIR, 'bin', platform === 'win32' ? 'claude-acc.exe' : 'claude-acc');
+
+  const body = platform === 'win32'
+    ? `function claude-acc {
+    if ($args[0] -eq 'switch') {
+        if (-not $args[1]) { Write-Error 'usage: claude-acc switch <account>'; return }
+        & '${bin}' default $args[1]
+        if ($LASTEXITCODE -ne 0) { return }
+        Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue
+        Remove-Item Env:__CLAUDE_ACC_PREV_DIR -ErrorAction SilentlyContinue
+    } else {
+        & '${bin}' @args
+    }
+}`
+    : `claude-acc() {
+    if [ "$1" = "switch" ]; then
+        if [ -z "$2" ]; then
+            echo "usage: claude-acc switch <account>" >&2
+            return 1
+        fi
+        '${bin}' default "$2" || return 1
+        unset CLAUDE_CONFIG_DIR __CLAUDE_ACC_PREV_DIR
+        # re-run upstream's activation so the flip lands in this shell, not on next cd
+        if type __claude_acc_activate >/dev/null 2>&1; then __claude_acc_activate; fi
+    else
+        '${bin}' "$@"
+    fi
+}`;
+
+  return `${BEGIN}\n# claude-acc switch <name> — flip account without needing a cd.\n${body}\n${END}`;
+}
+
+/**
+ * Writes a marker-delimited block into a file, replacing any previous copy.
+ * Idempotent, and picks up edits to the block across re-installs.
+ * @param {string} file
+ * @param {string} block - must start with BEGIN and end with END
+ */
+export async function upsertBlock(file, block) {
+  let current = '';
+  try {
+    current = await fs.readFile(file, 'utf-8');
+  } catch {
+    // rc file does not exist yet — created below
+  }
+
+  const start = current.indexOf(BEGIN);
+  const stop = current.indexOf(END);
+  const next = start !== -1 && stop > start
+    ? current.slice(0, start) + block + current.slice(stop + END.length)
+    : `${current.replace(/\n*$/, '')}\n\n${block}\n`;
+
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, next);
+}
+
+/** Account names currently registered with claude-acc. */
+export async function listAccounts() {
+  try {
+    const entries = await fs.readdir(ACCOUNTS_DIR, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Installs share-state.sh and links every existing account's state to ~/.claude,
+ * so sessions, memory, skills and settings follow you across accounts.
+ * POSIX-only: the script is /bin/sh.
+ */
+export async function installShareState() {
+  const dest = path.join(SWITCH_DIR, 'share-state.sh');
+  await fs.mkdir(SWITCH_DIR, { recursive: true });
+  await fs.copyFile(path.join(__dirname, '..', '..', 'scripts', 'share-state.sh'), dest);
+  await fs.chmod(dest, 0o755);
+  console.log(`Installed ${dest}`);
+
+  if (os.platform() === 'win32') {
+    console.log('Shared state: skipped (share-state.sh is POSIX sh).');
+    return;
+  }
+
+  const accounts = await listAccounts();
+  if (!accounts.length) {
+    console.log('Shared state: no accounts yet — run it after `claude-acc add <name>`.');
+    return;
+  }
+  execFileSync('/bin/sh', [dest, ...accounts], { stdio: 'inherit' });
 }
 
 /**
@@ -46,5 +165,12 @@ export async function installAccSwitch() {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
 
+  // Must come after upstream's install: the wrapper needs the binary in place,
+  // and the rc block has to sit below the `claude-acc init` line it depends on.
+  const rc = rcPath();
+  await upsertBlock(rc, switchFunction());
+  console.log(`Wired \`claude-acc switch\` into ${rc}`);
+
+  await installShareState();
   console.log('--- Account Switcher Complete (restart your shell) ---\n');
 }

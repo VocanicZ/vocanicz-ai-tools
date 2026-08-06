@@ -34,9 +34,18 @@ The installer is modular — pick which features to install (see [Selecting feat
 | **⚡ YOLO Mode** | `yolo` / `claude --yolo` shell alias that skips permission prompts. Injected into your profile (`.zshrc`, `.bashrc`, or PowerShell `$PROFILE`). |
 | **🔧 Harness Engine** | Clones the [Harness](https://github.com/VocanicZ/Harness) repo, checks/auto-installs deps (`git`, `python3`, `gh`, `claude`, `tmux`), and links the `harness` CLI onto your `PATH`. |
 | **🧩 Claude Integration** | Installs Claude plugins and external/internal skills (e.g. `to-prd`, `to-issues`, and bundled Harness skills). |
-| **🔀 Account Switcher** | Downloads the latest [`claude-acc`](https://github.com/Nemo-Illusionist/claude-code-account-switcher) release for your platform and runs its `install` — binds Claude accounts to directories and auto-switches on `cd`. Restart your shell afterwards. |
+| **🔀 Account Switcher** | Downloads the latest [`claude-acc`](https://github.com/Nemo-Illusionist/claude-code-account-switcher) release, runs its `install`, then adds two things upstream doesn't have: a `claude-acc switch <name>` command, and shared sessions/memory across accounts. Restart your shell afterwards. |
 
 Plus a **🚀 Universal Installer** with one-line setup for Windows (PowerShell) and Linux/macOS (Bash/Zsh).
+
+### Account Switcher detail
+
+Two additions on top of upstream `claude-acc`:
+
+- **`claude-acc switch <name>`** — flips the active account in the *current* shell. Upstream's `default <name>` only takes effect after a `cd`, because its prompt hook re-activates on directory change; `switch` sets the default, clears the stale `CLAUDE_CONFIG_DIR`, and re-activates immediately. It has to be a shell function (env can only be unset in the calling shell), so it is written into your rc file between `# >>> vocanicz-ai-tools` markers — re-running the installer replaces that block instead of appending a second copy. Every subcommand other than `switch` passes straight through to the binary.
+- **Shared sessions & memory** — installs `~/.claude-switch/share-state.sh` and runs it for each existing account, symlinking skills, agents, plugins, settings, hooks and `projects/` (session transcripts + memory) to `~/.claude`. Only `.credentials.json` and `.claude.json` stay per-account, so hitting a rate limit on one account means `claude-acc switch other && claude --continue` resumes the same work. Idempotent; a divergent file is stashed in `.pre-share-backup/` rather than deleted. POSIX-only — skipped on Windows. With no accounts yet, the script installs and you run it after `claude-acc add <name>`.
+
+Do not resume the *same* session under two accounts at once — shared `projects/` means both would write the same transcript.
 
 ### Status Bar detail
 

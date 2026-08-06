@@ -27,7 +27,7 @@ export const FEATURES = [
   {
     id: 'accswitch',
     name: 'Account Switcher',
-    description: 'claude-acc CLI: bind Claude accounts to directories, auto-switch on cd.'
+    description: 'claude-acc CLI + `switch` command + shared sessions/memory across accounts.'
   }
 ];
 
