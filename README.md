@@ -22,7 +22,7 @@ npx github:VocanicZ/vocanicz-ai-tools --setup --no-harness --no-claude
 npx github:VocanicZ/vocanicz-ai-tools --setup --only=statusbar,yolo
 ```
 
-Feature ids: `statusbar`, `yolo`, `harness`, `claude`. With no flags and no terminal (non-interactive), all features install by default.
+Feature ids: `statusbar`, `yolo`, `harness`, `claude`, `accswitch`. With no flags and no terminal (non-interactive), all features install by default.
 
 ## Features
 
@@ -34,6 +34,7 @@ The installer is modular — pick which features to install (see [Selecting feat
 | **⚡ YOLO Mode** | `yolo` / `claude --yolo` shell alias that skips permission prompts. Injected into your profile (`.zshrc`, `.bashrc`, or PowerShell `$PROFILE`). |
 | **🔧 Harness Engine** | Clones the [Harness](https://github.com/VocanicZ/Harness) repo, checks/auto-installs deps (`git`, `python3`, `gh`, `claude`, `tmux`), and links the `harness` CLI onto your `PATH`. |
 | **🧩 Claude Integration** | Installs Claude plugins and external/internal skills (e.g. `to-prd`, `to-issues`, and bundled Harness skills). |
+| **🔀 Account Switcher** | Downloads the latest [`claude-acc`](https://github.com/Nemo-Illusionist/claude-code-account-switcher) release for your platform and runs its `install` — binds Claude accounts to directories and auto-switches on `cd`. Restart your shell afterwards. |
 
 Plus a **🚀 Universal Installer** with one-line setup for Windows (PowerShell) and Linux/macOS (Bash/Zsh).
 

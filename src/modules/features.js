@@ -23,6 +23,11 @@ export const FEATURES = [
     id: 'claude',
     name: 'Claude Integration',
     description: 'Install Claude plugins and external/internal skills.'
+  },
+  {
+    id: 'accswitch',
+    name: 'Account Switcher',
+    description: 'claude-acc CLI: bind Claude accounts to directories, auto-switch on cd.'
   }
 ];
 

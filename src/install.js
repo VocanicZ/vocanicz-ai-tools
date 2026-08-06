@@ -6,6 +6,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { getSetupCommand } from './yolo/setup.js';
 import { installHarnessEngine, setupClaudeIntegration } from './modules/harness.js';
+import { installAccSwitch } from './modules/accswitch.js';
 import { resolveFeatures, FEATURES } from './modules/features.js';
 
 const HOME = os.homedir();
@@ -45,6 +46,14 @@ async function install(argv = []) {
         await setupClaudeIntegration();
       } catch (err) {
         console.warn('Claude integration failed, continuing:', err.message);
+      }
+    }
+
+    if (selected.accswitch) {
+      try {
+        await installAccSwitch();
+      } catch (err) {
+        console.warn('Account switcher install failed, continuing:', err.message);
       }
     }
 
@@ -155,6 +164,6 @@ if (args.includes('--setup')) {
   console.log('vocanicz-ai-tools installer');
   console.log('Usage: node src/install.js --setup [feature flags]');
   console.log('\nFeature selection (interactive prompt shown by default in a terminal):');
-  console.log('  --no-statusbar | --no-yolo | --no-harness | --no-claude   disable a feature');
-  console.log('  --only=statusbar,yolo                                     install only these');
+  console.log('  --no-statusbar | --no-yolo | --no-harness | --no-claude | --no-accswitch   disable a feature');
+  console.log('  --only=statusbar,yolo                                                      install only these');
 }
