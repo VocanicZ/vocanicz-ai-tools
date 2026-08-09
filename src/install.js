@@ -8,10 +8,12 @@ import { getSetupCommand } from './yolo/setup.js';
 import { installHarnessEngine, setupClaudeIntegration } from './modules/harness.js';
 import { installAccSwitch } from './modules/accswitch.js';
 import { resolveFeatures, FEATURES } from './modules/features.js';
+import { claudeConfigDir } from './modules/paths.js';
 
 const HOME = os.homedir();
 const INSTALL_DIR = path.join(HOME, '.vocanicz-ai-tools');
-const CLAUDE_SETTINGS = path.join(HOME, '.claude', 'settings.json');
+// Install into the account Claude Code is running as, not always ~/.claude.
+const CLAUDE_SETTINGS = path.join(claudeConfigDir(), 'settings.json');
 const AGY_SETTINGS = path.join(HOME, '.gemini', 'antigravity-cli', 'settings.json');
 
 const __filename = fileURLToPath(import.meta.url);

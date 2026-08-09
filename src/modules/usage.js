@@ -2,11 +2,18 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { claudeConfigDir } from './paths.js';
 
 function getPaths() {
-  const HOME = os.homedir();
-  const CREDENTIALS_PATH = path.join(HOME, '.claude', '.credentials.json');
-  const CACHE_DIR = path.join(HOME, '.claude', 'usagebar');
+  // Read the credentials of the account Claude Code is actually running as, and
+  // cache next to them so switching accounts switches the meters instead of
+  // showing (and clobbering) the previous account's numbers. Falls back to
+  // ~/.claude when CLAUDE_CONFIG_DIR is unset or holds no credentials.
+  const DEFAULT_DIR = path.join(os.homedir(), '.claude');
+  let configDir = claudeConfigDir();
+  if (!existsSync(path.join(configDir, '.credentials.json'))) configDir = DEFAULT_DIR;
+  const CREDENTIALS_PATH = path.join(configDir, '.credentials.json');
+  const CACHE_DIR = path.join(configDir, 'usagebar');
   const CACHE_PATH = path.join(CACHE_DIR, 'cache.json');
   return { CREDENTIALS_PATH, CACHE_DIR, CACHE_PATH };
 }

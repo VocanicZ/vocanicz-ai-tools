@@ -210,11 +210,22 @@ describe('setupEngine', () => {
 });
 
 describe('setupClaudeIntegration', () => {
+  let prevConfigDir;
+
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(os.homedir).mockReturnValue('/home/user');
     vi.mocked(execSync).mockReturnValue(Buffer.from('ok'));
     vi.mocked(fs.readdir).mockResolvedValue([]);
+    // The skills dir follows CLAUDE_CONFIG_DIR; keep the default-path cases
+    // independent of the environment the suite happens to run in.
+    prevConfigDir = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
+  });
+
+  afterEach(() => {
+    if (prevConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = prevConfigDir;
   });
 
   it('should install plugins and external skills', async () => {
@@ -240,6 +251,19 @@ describe('setupClaudeIntegration', () => {
     expect(fs.copyFile).toHaveBeenCalledWith(
       expect.stringContaining('test-skill.md'),
       expect.stringContaining('.claude/skills/test-skill.md')
+    );
+  });
+
+  it('should copy internal skills into CLAUDE_CONFIG_DIR when set', async () => {
+    process.env.CLAUDE_CONFIG_DIR = '/home/user/.claude-switch/accounts/work';
+    vi.mocked(existsSync).mockImplementation((path) => path.includes('skill'));
+    vi.mocked(fs.readdir).mockResolvedValue(['test-skill.md']);
+
+    await setupClaudeIntegration();
+
+    expect(fs.copyFile).toHaveBeenCalledWith(
+      expect.stringContaining('test-skill.md'),
+      expect.stringContaining('accounts/work/skills/test-skill.md')
     );
   });
 });

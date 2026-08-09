@@ -4,6 +4,7 @@ import path from 'node:path';
 import { existsSync, mkdirSync, cpSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { claudeConfigDir } from './paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,7 +80,7 @@ export async function setupClaudeIntegration() {
   }
 
   // Install skills (best effort as per original script)
-  const skillsDir = path.join(os.homedir(), '.claude', 'skills');
+  const skillsDir = path.join(claudeConfigDir(), 'skills');
   await fs.mkdir(skillsDir, { recursive: true });
 
   const externalSkills = [
