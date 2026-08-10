@@ -50,7 +50,7 @@ Do not resume the *same* session under two accounts at once — shared `projects
 ### Status Bar detail
 
 - **Token Tracking**: Real-time context window monitoring.
-- **Usage Limits**: Background-cached Anthropic usage tracking (5h, 7d).
+- **Usage Limits**: Background-cached Anthropic usage tracking (5h, 7d), read from the account Claude Code is running as — `$CLAUDE_CONFIG_DIR/.credentials.json` when set (as `claude-acc switch` does), `~/.claude` otherwise. The cache lives beside those credentials, so accounts keep separate meters instead of overwriting each other's.
 - **Model Awareness**: Resolves the max context window from the model (1M for Claude 4.x Opus/Sonnet), overridable via `contextLimit`.
 - **Graphify Integration**: Detects graphify usage and missing indices. The `[Graphify]` indicator is configurable.
 - **Segment toggles**: Show/hide each segment of the bar independently.

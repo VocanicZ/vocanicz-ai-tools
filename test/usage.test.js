@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getUsage, fetchUsage } from '../src/modules/usage.js';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -95,6 +95,48 @@ describe('usage module', () => {
     it('throws error if token is missing', async () => {
       fs.readFile.mockResolvedValue(JSON.stringify({}));
       await expect(fetchUsage()).rejects.toThrow('No OAuth token found in credentials');
+    });
+  });
+
+  describe('account-aware paths', () => {
+    const ACCOUNT = '/home/user/.claude-switch/accounts/work';
+    let prevConfigDir;
+
+    beforeEach(() => {
+      prevConfigDir = process.env.CLAUDE_CONFIG_DIR;
+      fs.readFile.mockResolvedValue(JSON.stringify({ claudeAiOauth: { accessToken: 'token' } }));
+      fetch.mockResolvedValue({ ok: true, json: async () => ({ result: 'ok' }) });
+    });
+
+    afterEach(() => {
+      if (prevConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = prevConfigDir;
+    });
+
+    it('reads credentials and caches under CLAUDE_CONFIG_DIR', async () => {
+      process.env.CLAUDE_CONFIG_DIR = ACCOUNT;
+      existsSync.mockImplementation((p) => String(p) === `${ACCOUNT}/.credentials.json`);
+
+      await fetchUsage();
+
+      expect(fs.readFile).toHaveBeenCalledWith(`${ACCOUNT}/.credentials.json`, 'utf-8');
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        `${ACCOUNT}/usagebar/cache.json`,
+        expect.any(String)
+      );
+    });
+
+    it('falls back to ~/.claude when the account dir has no credentials', async () => {
+      process.env.CLAUDE_CONFIG_DIR = ACCOUNT;
+      existsSync.mockReturnValue(false);
+
+      await fetchUsage();
+
+      expect(fs.readFile).toHaveBeenCalledWith(`${mockHome}/.claude/.credentials.json`, 'utf-8');
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        `${mockHome}/.claude/usagebar/cache.json`,
+        expect.any(String)
+      );
     });
   });
 });
