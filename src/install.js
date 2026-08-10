@@ -99,21 +99,30 @@ async function installStatusBar() {
     console.log('Created default config.json');
   }
 
-  // Point Claude Code's statusLine at main.js
+  // Point Claude Code's statusLine at main.js. A freshly added claude-acc
+  // account has a config dir but no settings.json, and Claude Code reads
+  // settings only from CLAUDE_CONFIG_DIR when it is set — so bailing out when
+  // the file is absent left every new account with no status bar at all.
+  let settings = {};
   if (existsSync(CLAUDE_SETTINGS)) {
-    const settingsContent = await fs.readFile(CLAUDE_SETTINGS, 'utf-8');
-    const settings = JSON.parse(settingsContent);
+    try {
+      settings = JSON.parse(await fs.readFile(CLAUDE_SETTINGS, 'utf-8')) || {};
+    } catch (err) {
+      console.warn(`Could not parse ${CLAUDE_SETTINGS}, leaving it alone: ${err.message}`);
+      settings = null;
+    }
+  }
 
+  if (settings) {
     settings.statusLine = settings.statusLine || {};
     // `type: "command"` is required by Claude Code; without it the statusLine
     // entry is ignored and nothing renders.
     settings.statusLine.type = 'command';
     settings.statusLine.command = statusLineCommand;
 
+    await fs.mkdir(path.dirname(CLAUDE_SETTINGS), { recursive: true });
     await fs.writeFile(CLAUDE_SETTINGS, JSON.stringify(settings, null, 2));
-    console.log('Updated Claude settings.json');
-  } else {
-    console.warn('Claude settings.json not found at', CLAUDE_SETTINGS);
+    console.log(`Updated ${CLAUDE_SETTINGS}`);
   }
 
   // Point Antigravity CLI's statusLine at main.js

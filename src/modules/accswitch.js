@@ -28,17 +28,85 @@ export function assetName(platform = os.platform(), arch = os.arch()) {
 }
 
 /**
- * Path of the rc file upstream's `claude-acc install` wires itself into.
+ * Every rc file the wrapper has to be written into.
+ *
+ * On Windows there are two independent PowerShell profiles, and upstream's
+ * `claude-acc install` only writes the PowerShell 7 one:
+ *   PowerShell 7+       Documents\PowerShell\Microsoft.PowerShell_profile.ps1
+ *   Windows PowerShell  Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+ * Windows PowerShell 5.1 ships with the OS and is still what most terminals
+ * open by default, so writing only the 7 profile leaves `claude-acc` undefined
+ * (and its bin dir off PATH) in the shell many users actually have.
+ *
+ * @param {string} platform - os.platform() value
+ * @param {string} shell - $SHELL value
+ * @returns {string[]} absolute rc paths, most-preferred first
+ */
+export function rcPaths(platform = os.platform(), shell = process.env.SHELL || '') {
+  const home = os.homedir();
+  if (platform === 'win32') {
+    return [
+      path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1'),
+      path.join(home, 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1')
+    ];
+  }
+  return [path.join(home, shell.includes('zsh') ? '.zshrc' : '.bashrc')];
+}
+
+/**
+ * Primary rc file — the one upstream's `claude-acc install` wires itself into.
  * @param {string} platform - os.platform() value
  * @param {string} shell - $SHELL value
  * @returns {string} absolute rc path
  */
 export function rcPath(platform = os.platform(), shell = process.env.SHELL || '') {
-  const home = os.homedir();
-  if (platform === 'win32') {
-    return path.join(home, 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1');
+  return rcPaths(platform, shell)[0];
+}
+
+/**
+ * Persists ~/.claude-switch/bin onto the user PATH so `claude-acc` resolves in
+ * cmd.exe, in GUI-launched terminals, and in any shell whose profile has not
+ * run upstream's `init` (which only prepends PATH for the current session).
+ *
+ * Skipped when the stored PATH contains `%VAR%` references: writing it back
+ * through SetEnvironmentVariable would flatten REG_EXPAND_SZ to REG_SZ and
+ * permanently break those references.
+ *
+ * @param {string} platform - os.platform() value
+ * @returns {boolean} whether PATH was modified
+ */
+export function ensureBinOnPath(platform = os.platform()) {
+  if (platform !== 'win32') return false;
+  const bin = path.join(SWITCH_DIR, 'bin');
+  const script = `
+$bin = '${bin}'
+$cur = [Environment]::GetEnvironmentVariable('Path','User')
+if ($null -eq $cur) { $cur = '' }
+if ($cur -match '%') { Write-Output 'skip:expandable'; exit 0 }
+if (($cur -split ';') -contains $bin) { Write-Output 'skip:present'; exit 0 }
+$next = if ($cur.Trim().Length) { $cur.TrimEnd(';') + ';' + $bin } else { $bin }
+[Environment]::SetEnvironmentVariable('Path', $next, 'User')
+Write-Output 'added'
+`.trim();
+
+  try {
+    const out = String(
+      execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+        encoding: 'utf-8'
+      })
+    ).trim();
+    if (out === 'added') {
+      console.log(`Added ${bin} to your user PATH (new terminals only).`);
+      return true;
+    }
+    if (out === 'skip:expandable') {
+      console.warn(`Left PATH alone (it uses %VAR% references). Add ${bin} manually.`);
+    }
+    return false;
+  } catch (err) {
+    console.warn(`Could not update user PATH: ${err.message}`);
+    return false;
   }
-  return path.join(home, shell.includes('zsh') ? '.zshrc' : '.bashrc');
 }
 
 /**
@@ -53,13 +121,35 @@ export function switchFunction(platform = os.platform()) {
   const accountsDir = ACCOUNTS_DIR;
 
   const body = platform === 'win32'
-    ? `function claude-acc {
+    ? `# Load upstream's integration when the profile above has not already (it is
+# written only into the PowerShell 7 profile, so Windows PowerShell 5.1 has
+# none). This also puts ~/.claude-switch/bin on PATH for the session.
+if (-not (Get-Command __claude_acc_activate -ErrorAction SilentlyContinue)) {
+    $__acc_init = (& '${bin}' init pwsh) -join "\`n"
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        # LocationChangedAction is PowerShell 6+. Drop the activate-on-cd hook so
+        # 5.1 does not throw on every shell start; \`switch\` still works, but a
+        # bare \`cd\` into a linked directory will not auto-activate there.
+        $__acc_init = [regex]::Replace(
+            $__acc_init,
+            '(?m)^\\$ExecutionContext\\.SessionState\\.InvokeCommand\\.LocationChangedAction\\s*=\\s*\\{[^}]*\\}\\s*$',
+            '')
+    }
+    Invoke-Expression $__acc_init
+    Remove-Variable __acc_init -ErrorAction SilentlyContinue
+}
+
+function claude-acc {
     if ($args[0] -eq 'switch') {
         if (-not $args[1]) { Write-Error 'usage: claude-acc switch <account>'; return }
         & '${bin}' default $args[1]
         if ($LASTEXITCODE -ne 0) { return }
         Remove-Item Env:CLAUDE_CONFIG_DIR -ErrorAction SilentlyContinue
         Remove-Item Env:__CLAUDE_ACC_PREV_DIR -ErrorAction SilentlyContinue
+        # re-run upstream's activation so the flip lands in this shell, not on
+        # next cd — \`switch\` never cds, so without this the shell keeps no
+        # CLAUDE_CONFIG_DIR at all and silently falls back to ~/.claude.
+        Invoke-Expression (& '${bin}' activate --shell powershell)
     } else {
         & '${bin}' @args
         # share-state.sh is POSIX sh — Windows accounts don't get auto-linked.
@@ -176,9 +266,13 @@ export async function installAccSwitch() {
 
   // Must come after upstream's install: the wrapper needs the binary in place,
   // and the rc block has to sit below the `claude-acc init` line it depends on.
-  const rc = rcPath();
-  await upsertBlock(rc, switchFunction());
-  console.log(`Wired \`claude-acc switch\` into ${rc}`);
+  const block = switchFunction();
+  for (const rc of rcPaths()) {
+    await upsertBlock(rc, block);
+    console.log(`Wired \`claude-acc switch\` into ${rc}`);
+  }
+
+  ensureBinOnPath();
 
   await installShareState();
   console.log('--- Account Switcher Complete (restart your shell) ---\n');

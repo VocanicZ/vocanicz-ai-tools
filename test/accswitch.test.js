@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { assetName, rcPath, switchFunction, upsertBlock } from '../src/modules/accswitch.js';
+import { assetName, rcPath, rcPaths, switchFunction, upsertBlock } from '../src/modules/accswitch.js';
 import { FEATURE_IDS } from '../src/modules/features.js';
 
 describe('accswitch module', () => {
@@ -35,6 +35,29 @@ describe('accswitch module', () => {
     });
   });
 
+  describe('rcPaths', () => {
+    it('returns a single rc on POSIX', () => {
+      expect(rcPaths('linux', '/usr/bin/zsh')).toEqual([path.join(os.homedir(), '.zshrc')]);
+      expect(rcPaths('darwin', '')).toEqual([path.join(os.homedir(), '.bashrc')]);
+    });
+
+    it('covers both PowerShell 7 and Windows PowerShell 5.1 profiles', () => {
+      const paths = rcPaths('win32', '');
+      expect(paths).toHaveLength(2);
+      expect(paths[0]).toBe(
+        path.join(os.homedir(), 'Documents', 'PowerShell', 'Microsoft.PowerShell_profile.ps1')
+      );
+      expect(paths[1]).toBe(
+        path.join(os.homedir(), 'Documents', 'WindowsPowerShell', 'Microsoft.PowerShell_profile.ps1')
+      );
+    });
+
+    it('agrees with rcPath on the primary entry', () => {
+      expect(rcPath('win32', '')).toBe(rcPaths('win32', '')[0]);
+      expect(rcPath('linux', '/bin/bash')).toBe(rcPaths('linux', '/bin/bash')[0]);
+    });
+  });
+
   describe('switchFunction', () => {
     it('calls the binary by absolute path so the wrapper cannot recurse', () => {
       const posix = switchFunction('linux');
@@ -48,6 +71,34 @@ describe('accswitch module', () => {
       expect(pwsh).toContain('function claude-acc {');
       expect(pwsh).toContain('Remove-Item Env:CLAUDE_CONFIG_DIR');
       expect(pwsh).toContain('claude-acc.exe');
+    });
+
+    it('re-activates on win32 so `switch` lands in the calling shell', () => {
+      // Clearing CLAUDE_CONFIG_DIR alone only worked if the activate-on-cd hook
+      // fired afterwards; `switch` never cds, so the shell fell back to
+      // ~/.claude (the default account) instead of the one just selected.
+      const pwsh = switchFunction('win32');
+      expect(pwsh).toContain("Invoke-Expression (& '");
+      expect(pwsh).toContain("activate --shell powershell");
+      expect(pwsh.indexOf('Remove-Item Env:CLAUDE_CONFIG_DIR'))
+        .toBeLessThan(pwsh.indexOf('activate --shell powershell'));
+    });
+
+    it('self-loads upstream integration and guards the 5.1-only failure', () => {
+      const pwsh = switchFunction('win32');
+      expect(pwsh).toContain('Get-Command __claude_acc_activate');
+      expect(pwsh).toContain("init pwsh");
+      // LocationChangedAction is PowerShell 6+; 5.1 throws on profile load.
+      expect(pwsh).toContain('$PSVersionTable.PSVersion.Major -lt 6');
+      expect(pwsh).toContain('LocationChangedAction');
+    });
+
+    it('keeps the PowerShell block free of unescaped template artifacts', () => {
+      const pwsh = switchFunction('win32');
+      // `-join "\`n"` and the regex escapes must survive JS template literals.
+      expect(pwsh).toContain('-join "`n"');
+      expect(pwsh).toContain('\\$ExecutionContext\\.SessionState');
+      expect(pwsh).not.toContain('${');
     });
 
     it('re-runs share-state.sh after `add` so new accounts get linked', () => {
