@@ -47,6 +47,8 @@ Two additions on top of upstream `claude-acc`:
 
 Do not resume the *same* session under two accounts at once — shared `projects/` means both would write the same transcript.
 
+**On Windows**, the block is written into *both* PowerShell profiles — `Documents\PowerShell\` (PowerShell 7) and `Documents\WindowsPowerShell\` (Windows PowerShell 5.1) — because upstream's `install` only writes the 7 one, which leaves `claude-acc` undefined in the 5.1 shell most terminals still open by default. `~/.claude-switch/bin` is also added to your user `PATH` so the binary resolves in `cmd.exe` and GUI-launched terminals (skipped if your stored `PATH` uses `%VAR%` references, which rewriting would break). One 5.1 caveat: upstream's activate-on-`cd` hook needs PowerShell 6+, so under 5.1 `claude-acc switch` works but `cd`-ing into a linked directory does not auto-activate — use PowerShell 7 if you rely on `claude-acc link`.
+
 ### Status Bar detail
 
 - **Token Tracking**: Real-time context window monitoring.
