@@ -49,6 +49,13 @@ describe('accswitch module', () => {
       expect(pwsh).toContain('Remove-Item Env:CLAUDE_CONFIG_DIR');
       expect(pwsh).toContain('claude-acc.exe');
     });
+
+    it('re-runs share-state.sh after `add` so new accounts get linked', () => {
+      const posix = switchFunction('linux');
+      expect(posix).toContain('elif [ "$1" = "add" ]');
+      expect(posix).toContain(path.join(os.homedir(), '.claude-switch', 'share-state.sh'));
+      expect(posix).toContain(path.join(os.homedir(), '.claude-switch', 'accounts'));
+    });
   });
 
   describe('upsertBlock', () => {

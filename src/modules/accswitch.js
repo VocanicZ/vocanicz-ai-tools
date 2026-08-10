@@ -49,6 +49,8 @@ export function rcPath(platform = os.platform(), shell = process.env.SHELL || ''
  */
 export function switchFunction(platform = os.platform()) {
   const bin = path.join(SWITCH_DIR, 'bin', platform === 'win32' ? 'claude-acc.exe' : 'claude-acc');
+  const shareState = path.join(SWITCH_DIR, 'share-state.sh');
+  const accountsDir = ACCOUNTS_DIR;
 
   const body = platform === 'win32'
     ? `function claude-acc {
@@ -60,6 +62,7 @@ export function switchFunction(platform = os.platform()) {
         Remove-Item Env:__CLAUDE_ACC_PREV_DIR -ErrorAction SilentlyContinue
     } else {
         & '${bin}' @args
+        # share-state.sh is POSIX sh — Windows accounts don't get auto-linked.
     }
 }`
     : `claude-acc() {
@@ -72,6 +75,12 @@ export function switchFunction(platform = os.platform()) {
         unset CLAUDE_CONFIG_DIR __CLAUDE_ACC_PREV_DIR
         # re-run upstream's activation so the flip lands in this shell, not on next cd
         if type __claude_acc_activate >/dev/null 2>&1; then __claude_acc_activate; fi
+    elif [ "$1" = "add" ]; then
+        '${bin}' "$@" || return 1
+        # new account won't share sessions/memory/statusbar with ~/.claude until linked
+        if [ -x '${shareState}' ]; then
+            '${shareState}' $(command ls '${accountsDir}' 2>/dev/null) >/dev/null
+        fi
     else
         '${bin}' "$@"
     fi
