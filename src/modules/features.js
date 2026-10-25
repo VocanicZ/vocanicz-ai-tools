@@ -28,6 +28,11 @@ export const FEATURES = [
     id: 'accswitch',
     name: 'Account Switcher',
     description: 'claude-acc CLI + `switch` command + shared sessions/memory across accounts.'
+  },
+  {
+    id: 'swarm',
+    name: 'Swarm',
+    description: 'Join this Linux machine to a swarm as worker or coordinator (needs sudo).'
   }
 ];
 

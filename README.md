@@ -22,7 +22,7 @@ npx github:VocanicZ/vocanicz-ai-tools --setup --no-harness --no-claude
 npx github:VocanicZ/vocanicz-ai-tools --setup --only=statusbar,yolo
 ```
 
-Feature ids: `statusbar`, `yolo`, `harness`, `claude`, `accswitch`. With no flags and no terminal (non-interactive), all features install by default.
+Feature ids: `statusbar`, `yolo`, `harness`, `claude`, `accswitch`, `swarm`. With no flags and no terminal (non-interactive), all features install by default — except `swarm`, which is skipped unless given a role (see [Swarm detail](#swarm-detail)).
 
 ## Features
 
@@ -35,6 +35,7 @@ The installer is modular — pick which features to install (see [Selecting feat
 | **🔧 Harness Engine** | Clones the [Harness](https://github.com/VocanicZ/Harness) repo, checks/auto-installs deps (`git`, `python3`, `gh`, `claude`, `tmux`), and links the `harness` CLI onto your `PATH`. |
 | **🧩 Claude Integration** | Installs Claude plugins and external/internal skills (e.g. `to-prd`, `to-issues`, and bundled Harness skills). |
 | **🔀 Account Switcher** | Downloads the latest [`claude-acc`](https://github.com/Nemo-Illusionist/claude-code-account-switcher) release, runs its `install`, then adds two things upstream doesn't have: a `claude-acc switch <name>` command, and shared sessions/memory across accounts. Restart your shell afterwards. |
+| **🐝 Swarm** | Joins this machine to a [swarm](https://github.com/VocanicZ/swarm) (HTCondor-based spare-machine worker pool) as a worker or the coordinator, or runs `sudo swarm update` if already installed. Linux + systemd only; needs sudo. |
 
 Plus a **🚀 Universal Installer** with one-line setup for Windows (PowerShell) and Linux/macOS (Bash/Zsh).
 
@@ -48,6 +49,26 @@ Two additions on top of upstream `claude-acc`:
 Do not resume the *same* session under two accounts at once — shared `projects/` means both would write the same transcript.
 
 **On Windows**, the block is written into *both* PowerShell profiles — `Documents\PowerShell\` (PowerShell 7) and `Documents\WindowsPowerShell\` (Windows PowerShell 5.1) — because upstream's `install` only writes the 7 one, which leaves `claude-acc` undefined in the 5.1 shell most terminals still open by default. `~/.claude-switch/bin` is also added to your user `PATH` so the binary resolves in `cmd.exe` and GUI-launched terminals (skipped if your stored `PATH` uses `%VAR%` references, which rewriting would break). One 5.1 caveat: upstream's activate-on-`cd` hook needs PowerShell 6+, so under 5.1 `claude-acc switch` works but `cd`-ing into a linked directory does not auto-activate — use PowerShell 7 if you rely on `claude-acc link`.
+
+### Swarm detail
+
+When selected interactively, the installer asks for a role — `worker`, `coordinator`, or `skip` (default) — and, for a worker, the coordinator's IP/host. It then runs swarm's root installer with your terminal attached, so `sudo` and HTCondor's pool-password prompt work:
+
+```bash
+# worker
+curl -fsSL https://raw.githubusercontent.com/VocanicZ/swarm/main/install.sh | sudo bash -s -- worker <coord-ip> [--link-mbps N]
+# coordinator
+curl -fsSL https://raw.githubusercontent.com/VocanicZ/swarm/main/install.sh | sudo bash -s -- coordinator [--cpu-limit N]
+```
+
+If `swarm` is already on `PATH` it offers `sudo swarm update` instead (re-runs with the saved role/args). Non-interactive runs skip swarm unless a role is passed:
+
+```bash
+npx github:VocanicZ/vocanicz-ai-tools --setup --only=swarm --swarm-role=worker --swarm-coord=192.168.1.10 [--swarm-link-mbps=N]
+npx github:VocanicZ/vocanicz-ai-tools --setup --only=swarm --swarm-role=coordinator [--swarm-cpu-limit=N]
+```
+
+The coordinator address is validated (hostname/IPv4/IPv6 characters only) before it reaches a command line. Skipped with a message on non-Linux.
 
 ### Status Bar detail
 
