@@ -13,9 +13,11 @@ const INSTALLER = fileURLToPath(new URL('../src/install.js', import.meta.url));
  * Returns stdout and stderr combined — warnings go to console.warn.
  */
 function runInstaller(home, env = {}) {
+  // never inherit the caller's CLAUDE_CONFIG_DIR: it points the installer at the real account config
+  const { CLAUDE_CONFIG_DIR: _real, ...base } = process.env;
   const res = spawnSync(process.execPath, [INSTALLER, '--setup', '--only=statusbar'], {
     encoding: 'utf-8',
-    env: { ...process.env, HOME: home, USERPROFILE: home, ...env }
+    env: { ...base, HOME: home, USERPROFILE: home, ...env }
   });
   if (res.status !== 0) {
     throw new Error(`installer exited ${res.status}: ${res.stdout}${res.stderr}`);
