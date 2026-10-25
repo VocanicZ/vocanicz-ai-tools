@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { getSetupCommand } from './yolo/setup.js';
 import { installHarnessEngine, setupClaudeIntegration } from './modules/harness.js';
 import { installAccSwitch } from './modules/accswitch.js';
+import { installSwarm } from './modules/swarm.js';
 import { resolveFeatures, FEATURES } from './modules/features.js';
 import { claudeConfigDir } from './modules/paths.js';
 
@@ -56,6 +57,14 @@ async function install(argv = []) {
         await installAccSwitch();
       } catch (err) {
         console.warn('Account switcher install failed, continuing:', err.message);
+      }
+    }
+
+    if (selected.swarm) {
+      try {
+        await installSwarm({ argv });
+      } catch (err) {
+        console.warn('Swarm install failed, continuing:', err.message);
       }
     }
 
@@ -175,6 +184,9 @@ if (args.includes('--setup')) {
   console.log('vocanicz-ai-tools installer');
   console.log('Usage: node src/install.js --setup [feature flags]');
   console.log('\nFeature selection (interactive prompt shown by default in a terminal):');
-  console.log('  --no-statusbar | --no-yolo | --no-harness | --no-claude | --no-accswitch   disable a feature');
-  console.log('  --only=statusbar,yolo                                                      install only these');
+  console.log('  --no-statusbar | --no-yolo | --no-harness | --no-claude | --no-accswitch | --no-swarm   disable a feature');
+  console.log('  --only=statusbar,yolo                                                                   install only these');
+  console.log('\nSwarm (skipped when non-interactive unless a role is given):');
+  console.log('  --swarm-role=worker --swarm-coord=<ip> [--swarm-link-mbps=N]');
+  console.log('  --swarm-role=coordinator [--swarm-cpu-limit=N]');
 }
